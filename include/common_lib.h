@@ -1,4 +1,5 @@
-/* Developer: Chunran Zheng <zhengcr@connect.hku.hk>
+/*
+Developer: Chunran Zheng <zhengcr@connect.hku.hk>
 
 This file is subject to the terms and conditions outlined in the 'LICENSE' file,
 which is included as part of this source code package.
@@ -38,40 +39,40 @@ using namespace pcl;
 
 // namespace CommonLiDAR 
 // {
-//    struct EIGEN_ALIGN16 Point 
-//    {
-//      PCL_ADD_POINT4D;      // quad-word XYZ
-//      float intensity;      ///< laser intensity reading
-//      std::uint16_t ring;   ///< laser ring number
-//      float range;
-//      EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
-//    };
+//   struct EIGEN_ALIGN16 Point 
+//   {
+//     PCL_ADD_POINT4D;     // quad-word XYZ
+//     float intensity;     ///< laser intensity reading
+//     std::uint16_t ring;  ///< laser ring number
+//     float range;
+//     EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
+//   };
   
-//    void addRange(pcl::PointCloud<CommonLiDAR::Point> &pc) 
-//    {
-//      for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
-//           pt < pc.points.end(); pt++) {
-//        pt->range = sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);
-//      }
-//    }
+//   void addRange(pcl::PointCloud<CommonLiDAR::Point> &pc) 
+//   {
+//     for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
+//          pt < pc.points.end(); pt++) {
+//       pt->range = sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);
+//     }
+//   }
   
-//    vector<vector<Point *>> getRings(pcl::PointCloud<CommonLiDAR::Point> &pc,
-//                                       int rings_count) 
-//    {
-//      vector<vector<Point *>> rings(rings_count);
-//      for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
-//           pt < pc.points.end(); pt++) {
-//        rings[pt->ring].push_back(&(*pt));
-//      }
-//      return rings;
-//    }
-// }  // namespace Ouster
+//   vector<vector<Point *>> getRings(pcl::PointCloud<CommonLiDAR::Point> &pc,
+//                                    int rings_count) 
+//   {
+//     vector<vector<Point *>> rings(rings_count);
+//     for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
+//          pt < pc.points.end(); pt++) {
+//       rings[pt->ring].push_back(&(*pt));
+//     }
+//     return rings;
+//   }
+// } // namespace Ouster
   
 // POINT_CLOUD_REGISTER_POINT_STRUCT(CommonLiDAR::Point,
 //                                   (float, x, x)(float, y, y)(float, z, z)(
 //                                       float, intensity,
 //                                       intensity)(std::uint16_t, ring,
-//                                                  ring)(float, range, range));
+//                                                   ring)(float, range, range));
 
 // 参数结构体
 struct Params {
@@ -212,7 +213,7 @@ void projectPointCloudToImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 }
 
 void saveCalibrationResults(const Params& params, const Eigen::Matrix4f& transformation, 
-    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colored_cloud, const cv::Mat& img_input)
+     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colored_cloud, const cv::Mat& img_input)
 {
   if(colored_cloud->empty()) 
   {
