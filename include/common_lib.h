@@ -1,5 +1,4 @@
-/* 
-Developer: Chunran Zheng <zhengcr@connect.hku.hk>
+/* Developer: Chunran Zheng <zhengcr@connect.hku.hk>
 
 This file is subject to the terms and conditions outlined in the 'LICENSE' file,
 which is included as part of this source code package.
@@ -39,40 +38,40 @@ using namespace pcl;
 
 // namespace CommonLiDAR 
 // {
-//   struct EIGEN_ALIGN16 Point 
-//   {
-//     PCL_ADD_POINT4D;     // quad-word XYZ
-//     float intensity;     ///< laser intensity reading
-//     std::uint16_t ring;  ///< laser ring number
-//     float range;
-//     EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
-//   };
+//    struct EIGEN_ALIGN16 Point 
+//    {
+//      PCL_ADD_POINT4D;      // quad-word XYZ
+//      float intensity;      ///< laser intensity reading
+//      std::uint16_t ring;   ///< laser ring number
+//      float range;
+//      EIGEN_MAKE_ALIGNED_OPERATOR_NEW  // ensure proper alignment
+//    };
   
-//   void addRange(pcl::PointCloud<CommonLiDAR::Point> &pc) 
-//   {
-//     for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
-//          pt < pc.points.end(); pt++) {
-//       pt->range = sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);
-//     }
-//   }
+//    void addRange(pcl::PointCloud<CommonLiDAR::Point> &pc) 
+//    {
+//      for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
+//           pt < pc.points.end(); pt++) {
+//        pt->range = sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);
+//      }
+//    }
   
-//   vector<vector<Point *>> getRings(pcl::PointCloud<CommonLiDAR::Point> &pc,
-//                                    int rings_count) 
-//   {
-//     vector<vector<Point *>> rings(rings_count);
-//     for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
-//          pt < pc.points.end(); pt++) {
-//       rings[pt->ring].push_back(&(*pt));
-//     }
-//     return rings;
-//   }
+//    vector<vector<Point *>> getRings(pcl::PointCloud<CommonLiDAR::Point> &pc,
+//                                       int rings_count) 
+//    {
+//      vector<vector<Point *>> rings(rings_count);
+//      for (pcl::PointCloud<Point>::iterator pt = pc.points.begin();
+//           pt < pc.points.end(); pt++) {
+//        rings[pt->ring].push_back(&(*pt));
+//      }
+//      return rings;
+//    }
 // }  // namespace Ouster
   
 // POINT_CLOUD_REGISTER_POINT_STRUCT(CommonLiDAR::Point,
 //                                   (float, x, x)(float, y, y)(float, z, z)(
 //                                       float, intensity,
 //                                       intensity)(std::uint16_t, ring,
-//                                                   ring)(float, range, range));
+//                                                  ring)(float, range, range));
 
 // 参数结构体
 struct Params {
@@ -213,7 +212,7 @@ void projectPointCloudToImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
 }
 
 void saveCalibrationResults(const Params& params, const Eigen::Matrix4f& transformation, 
-     const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colored_cloud, const cv::Mat& img_input)
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colored_cloud, const cv::Mat& img_input)
 {
   if(colored_cloud->empty()) 
   {
@@ -268,223 +267,175 @@ void saveCalibrationResults(const Params& params, const Eigen::Matrix4f& transfo
   imwrite(outputDir + "qr_detect.png", img_input);
 }
 
-void sortPatternCenters(pcl::PointCloud<pcl::PointXYZ>::Ptr pc, pcl::PointCloud<pcl::PointXYZ>::Ptr v, const std::string& axis_mode = "camera") 
-{
-  // 0 -- 1
-  // |    |
-  // 3 -- 2
-  if(pc->size() != 4) 
-  {
-    std::cerr << BOLDRED << "[sortPatternCenters] Number of " << axis_mode << " center points to be sorted is not 4." << RESET << std::endl;
-    return;
-  }
-  if (v->empty()) {
-    v->clear();
-    v->reserve(4);
-  }
-
-  // Check axis mode
-  bool is_lidar_mode = (axis_mode == "lidar");
-
-  if (is_lidar_mode)
-  {
-    for (auto& point : pc->points) 
-    {
-      float x_new = -point.y;   // LiDAR Y → 相机 -X
-      float y_new = -point.z;   // LiDAR Z → 相机 -Y
-      float z_new = point.x;    // LiDAR X → 相机  Z
-
-      point.x = x_new;
-      point.y = y_new;
-      point.z = z_new;
+void sortPatternCenters(pcl::PointCloud<pcl::PointXYZ>::Ptr pc,
+                        pcl::PointCloud<pcl::PointXYZ>::Ptr v,
+                        const std::string& axis_mode = "camera") {
+    if (pc->size() != 4) {
+        std::cerr << "Number of centers must be 4\n";
+        return;
     }
-  }
 
-  // Transform points to polar coordinates
-  pcl::PointCloud<pcl::PointXYZ>::Ptr spherical_centers(
-  new pcl::PointCloud<pcl::PointXYZ>());
-  int top_pt = 0;
-  int index = 0;  // Auxiliar index to be used inside loop
-  for (pcl::PointCloud<pcl::PointXYZ>::iterator pt = pc->points.begin();
-  pt < pc->points.end(); pt++, index++) 
-  {
-    pcl::PointXYZ spherical_center;
-    spherical_center.x = atan2(pt->y, pt->x);  // Horizontal
-    spherical_center.y =
-    atan2(sqrt(pt->x * pt->x + pt->y * pt->y), pt->z);  // Vertical
-    spherical_center.z =
-    sqrt(pt->x * pt->x + pt->y * pt->y + pt->z * pt->z);  // Range
-    spherical_centers->push_back(spherical_center);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr work_pc(new pcl::PointCloud<pcl::PointXYZ>());
 
-    if (spherical_center.y < spherical_centers->points[top_pt].y) 
-    {
-      top_pt = index;
+    // Coordinate transformation (LiDAR -> Camera)
+    if (axis_mode == "lidar") {
+        for (const auto& p : *pc) {
+            pcl::PointXYZ pt;
+            pt.x = -p.y;   // LiDAR Y -> Cam -X
+            pt.y = -p.z;   // LiDAR Z -> Cam -Y
+            pt.z = p.x;    // LiDAR X -> Cam Z
+            work_pc->push_back(pt);
+        }
+    } else {
+        *work_pc = *pc;
     }
-  }
 
-  // Compute distances from top-most center to rest of points
-  vector<double> distances;
-  for (int i = 0; i < 4; i++) {
-    pcl::PointXYZ pt = pc->points[i];
-    pcl::PointXYZ upper_pt = pc->points[top_pt];
-    distances.push_back(sqrt(pow(pt.x - upper_pt.x, 2) +
-        pow(pt.y - upper_pt.y, 2) +
-        pow(pt.z - upper_pt.z, 2)));
-  }
+    // --- Sorting based on the local coordinate system of the pattern ---
+    // 1. Calculate the centroid of the points
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(*work_pc, centroid);
+    pcl::PointXYZ ref_origin(centroid[0], centroid[1], centroid[2]);
 
-  // Get indices of closest and furthest points
-  int min_dist = (top_pt + 1) % 4, max_dist = top_pt;
-  for (int i = 0; i < 4; i++) {
-    if (i == top_pt) continue;
-    if (distances[i] > distances[max_dist]) {
-      max_dist = i;
+    // 2. Project points to the XY plane relative to the centroid and calculate angles
+    std::vector<std::pair<float, int>> proj_points;
+    for (size_t i = 0; i < work_pc->size(); ++i) {
+        const auto& p = work_pc->points[i];
+        Eigen::Vector3f rel_vec(p.x - ref_origin.x, p.y - ref_origin.y, p.z - ref_origin.z);
+        proj_points.emplace_back(atan2(rel_vec.y(), rel_vec.x()), i);
     }
-    if (distances[i] < distances[min_dist]) {
-      min_dist = i;
+
+    // 3. Sort points based on the calculated angle
+    std::sort(proj_points.begin(), proj_points.end());
+
+    // 4. Output the sorted points into the result vector 'v'
+    v->resize(4);
+    for (int i = 0; i < 4; ++i) {
+        (*v)[i] = work_pc->points[proj_points[i].second];
     }
-  }
 
-  // Second highest point shoud be the one whose distance is the median value
-  int top_pt2 = 6 - (top_pt + max_dist + min_dist);  // 0 + 1 + 2 + 3 = 6
-
-  // Order upper row centers
-  int lefttop_pt = top_pt;
-  int righttop_pt = top_pt2;
-
-  if (spherical_centers->points[top_pt].x <
-    spherical_centers->points[top_pt2].x) {
-    int aux = lefttop_pt;
-    lefttop_pt = righttop_pt;
-    righttop_pt = aux;
-  }
-
-  // Swap indices if target is located in the pi,-pi discontinuity
-  double angle_diff = spherical_centers->points[lefttop_pt].x -
-  spherical_centers->points[righttop_pt].x;
-  if (angle_diff > M_PI - spherical_centers->points[lefttop_pt].x) {
-    int aux = lefttop_pt;
-    lefttop_pt = righttop_pt;
-    righttop_pt = aux;
-  }
-
-  // Define bottom row centers using lefttop == top_pt as hypothesis
-  int leftbottom_pt = min_dist;
-  int rightbottom_pt = max_dist;
-
-  // If lefttop != top_pt, swap indices
-  if (righttop_pt == top_pt) {
-    leftbottom_pt = max_dist;
-    rightbottom_pt = min_dist;
-  }
-
-  // Fill vector with sorted centers
-  v->push_back(pc->points[lefttop_pt]);
-  v->push_back(pc->points[righttop_pt]);
-  v->push_back(pc->points[rightbottom_pt]);
-  v->push_back(pc->points[leftbottom_pt]);
-
-  if (is_lidar_mode) 
-  {
-    for (auto& point : v->points)
-    {
-      float x_new = point.z;  
-      float y_new = -point.x; 
-      float z_new = -point.y;  
-
-      point.x = x_new;
-      point.y = y_new;
-      point.z = z_new;
+    // 5. Verify the order (ensure it's counter-clockwise) and fix if necessary
+    const auto& p0 = v->points[0];
+    const auto& p1 = v->points[1];
+    const auto& p2 = v->points[2];
+    Eigen::Vector3f v01(p1.x - p0.x, p1.y - p0.y, 0);
+    Eigen::Vector3f v12(p2.x - p1.x, p2.y - p1.y, 0);
+    if (v01.cross(v12).z() > 0) {
+        std::swap((*v)[1], (*v)[3]);
     }
-  }
+
+    // 6. If the original input was in the lidar frame, transform the sorted points back
+    if (axis_mode == "lidar") {
+        for (auto& point : v->points) {
+            float x_new = point.z;    // Cam Z -> LiDAR X
+            float y_new = -point.x;   // Cam -X -> LiDAR Y
+            float z_new = -point.y;   // Cam -Y -> LiDAR Z
+            point.x = x_new;
+            point.y = y_new;
+            point.z = z_new;
+        }
+    }
 }
+
 
 class Square 
 {
   private:
-   pcl::PointXYZ _center;
-   std::vector<pcl::PointXYZ> _candidates;
-   float _target_width, _target_height, _target_diagonal;
+    pcl::PointXYZ _center;
+    std::vector<pcl::PointXYZ> _candidates;
+    float _target_width, _target_height, _target_diagonal;
  
   public:
-   Square(std::vector<pcl::PointXYZ> candidates, float width, float height) {
-     _candidates = candidates;
-     _target_width = width;
-     _target_height = height;
-     _target_diagonal = sqrt(pow(width, 2) + pow(height, 2));
+    Square(std::vector<pcl::PointXYZ> candidates, float width, float height) {
+      _candidates = candidates;
+      _target_width = width;
+      _target_height = height;
+      _target_diagonal = sqrt(pow(width, 2) + pow(height, 2));
  
-     // Compute candidates centroid
-     for (int i = 0; i < candidates.size(); ++i) {
-       _center.x += candidates[i].x;
-       _center.y += candidates[i].y;
-       _center.z += candidates[i].z;
-     }
+      // Compute candidates centroid
+      _center.x = _center.y = _center.z = 0;
+      for (int i = 0; i < candidates.size(); ++i) {
+        _center.x += candidates[i].x;
+        _center.y += candidates[i].y;
+        _center.z += candidates[i].z;
+      }
  
-     _center.x /= candidates.size();
-     _center.y /= candidates.size();
-     _center.z /= candidates.size();
-   }
+      _center.x /= candidates.size();
+      _center.y /= candidates.size();
+      _center.z /= candidates.size();
+    }
  
-   float distance(pcl::PointXYZ pt1, pcl::PointXYZ pt2) {
-     return sqrt(pow(pt1.x - pt2.x, 2) + pow(pt1.y - pt2.y, 2) +
-                 pow(pt1.z - pt2.z, 2));
-   }
+    float distance(pcl::PointXYZ pt1, pcl::PointXYZ pt2) {
+      return sqrt(pow(pt1.x - pt2.x, 2) + pow(pt1.y - pt2.y, 2) +
+                  pow(pt1.z - pt2.z, 2));
+    }
  
-   float perimeter() {  // TODO: It is assumed that _candidates are ordered, it
-                        // shouldn't
-     float perimeter = 0;
-     for (int i = 0; i < 4; ++i) {
-       perimeter += distance(_candidates[i], _candidates[(i + 1) % 4]);
-     }
-     return perimeter;
-   }
+    pcl::PointXYZ at(int i) {
+      assert(0 <= i && i < 4);
+      return _candidates[i];
+    }
  
-   pcl::PointXYZ at(int i) {
-     assert(0 <= i && i < 4);
-     return _candidates[i];
-   }
+    // ==================================================================================================
+    // The original is_valid() was too rigid. This version is more robust by checking for two possible
+    // orderings of the side lengths (width-height vs. height-width) after angular sorting.
+    // ==================================================================================================
+    bool is_valid() 
+    {
+      if (_candidates.size() != 4) return false;
+
+      pcl::PointCloud<pcl::PointXYZ>::Ptr candidates_cloud(new pcl::PointCloud<pcl::PointXYZ>());
+      for(const auto& p : _candidates) candidates_cloud->push_back(p);
+
+      // Check if candidates are at a reasonable distance from their centroid
+      for (int i = 0; i < _candidates.size(); ++i) {
+        float d = distance(_center, _candidates[i]);
+        // Check if distance from center to corner is close to half the diagonal length
+        if (fabs(d - _target_diagonal / 2.) / (_target_diagonal / 2.) > GEOMETRY_TOLERANCE * 2.0) { // Loosened tolerance slightly
+          // std::cout << "[Debug] Corner distance from center failed." << std::endl;
+          return false;
+        }
+      }
+      
+      // Sort the corners counter-clockwise
+      pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_centers(new pcl::PointCloud<pcl::PointXYZ>());
+      sortPatternCenters(candidates_cloud, sorted_centers, "camera");
+      
+      // Get the four side lengths from the sorted points
+      float s01 = distance(sorted_centers->points[0], sorted_centers->points[1]);
+      float s12 = distance(sorted_centers->points[1], sorted_centers->points[2]);
+      float s23 = distance(sorted_centers->points[2], sorted_centers->points[3]);
+      float s30 = distance(sorted_centers->points[3], sorted_centers->points[0]);
+
+      // Check for pattern 1: width, height, width, height
+      bool pattern1_ok = 
+          (fabs(s01 - _target_width) / _target_width < GEOMETRY_TOLERANCE) &&
+          (fabs(s12 - _target_height) / _target_height < GEOMETRY_TOLERANCE) &&
+          (fabs(s23 - _target_width) / _target_width < GEOMETRY_TOLERANCE) &&
+          (fabs(s30 - _target_height) / _target_height < GEOMETRY_TOLERANCE);
+
+      // Check for pattern 2: height, width, height, width
+      bool pattern2_ok = 
+          (fabs(s01 - _target_height) / _target_height < GEOMETRY_TOLERANCE) &&
+          (fabs(s12 - _target_width) / _target_width < GEOMETRY_TOLERANCE) &&
+          (fabs(s23 - _target_height) / _target_height < GEOMETRY_TOLERANCE) &&
+          (fabs(s30 - _target_width) / _target_width < GEOMETRY_TOLERANCE);
+
+      if (!pattern1_ok && !pattern2_ok) {
+          // std::cout << "[Debug] Side length geometry validation failed. Measured sides: " 
+          //           << s01 << ", " << s12 << ", " << s23 << ", " << s30 << std::endl;
+          // std::cout << "[Debug] Target width/height: " << _target_width << " / " << _target_height << std::endl;
+          return false;
+      }
+      
+      // Final check on perimeter
+      float perimeter = s01 + s12 + s23 + s30;
+      float ideal_perimeter = 2 * (_target_width + _target_height);
+      if (fabs(perimeter - ideal_perimeter) / ideal_perimeter > GEOMETRY_TOLERANCE) {
+          // std::cout << "[Debug] Perimeter check failed. Measured: " << perimeter << ", Ideal: " << ideal_perimeter << std::endl;
+          return false;
+      }
  
-   bool is_valid() 
-   {
-     pcl::PointCloud<pcl::PointXYZ>::Ptr candidates_cloud(
-         new pcl::PointCloud<pcl::PointXYZ>());
-     // Check if candidates are at 5% of target's diagonal/2 to their centroid
-     for (int i = 0; i < _candidates.size(); ++i) {
-       candidates_cloud->push_back(_candidates[i]);
-       float d = distance(_center, _candidates[i]);
-       if (fabs(d - _target_diagonal / 2.) / (_target_diagonal / 2.) >
-           GEOMETRY_TOLERANCE) {
-         return false;
-       }
-     }
-     // Check perimeter?
-     pcl::PointCloud<pcl::PointXYZ>::Ptr sorted_centers(new pcl::PointCloud<pcl::PointXYZ>());
-     sortPatternCenters(candidates_cloud, sorted_centers, "camera");
-     float perimeter = 0;
-     for (int i = 0; i < sorted_centers->size(); ++i) {
-       float current_distance = distance(
-           sorted_centers->points[i], sorted_centers->points[(i + 1) % sorted_centers->size()]);
-       if (i % 2) {
-         if (fabs(current_distance - _target_height) / _target_height >
-             GEOMETRY_TOLERANCE) {
-           return false;
-         }
-       } else {
-         if (fabs(current_distance - _target_width) / _target_width >
-             GEOMETRY_TOLERANCE) {
-           return false;
-         }
-       }
-       perimeter += current_distance;
-     }
-     float ideal_perimeter = (2 * _target_width + 2 * _target_height);
-     if (fabs((perimeter - ideal_perimeter) / ideal_perimeter >
-              GEOMETRY_TOLERANCE)) {
-       return false;
-     }
- 
-     // Check width + height?
-     return true;
-   }
+      return true;
+    }
 };
 
 #endif
