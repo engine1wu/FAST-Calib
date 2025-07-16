@@ -66,7 +66,7 @@ using namespace pcl;
 //     }
 //     return rings;
 //   }
-// } // namespace Ouster
+// }  // namespace Ouster
   
 // POINT_CLOUD_REGISTER_POINT_STRUCT(CommonLiDAR::Point,
 //                                   (float, x, x)(float, y, y)(float, z, z)(
