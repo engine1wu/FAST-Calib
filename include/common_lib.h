@@ -27,6 +27,7 @@ which is included as part of this source code package.
 #include <cmath>
 
 #include <tf/tf.h>
+#include "camera_model.hpp"
 #include "color.h"
 
 using namespace std;
@@ -77,10 +78,12 @@ using namespace pcl;
 // 参数结构体
 struct Params {
   double x_min, x_max, y_min, y_max, z_min, z_max;
-  double fx, fy, cx, cy, k1, k2, p1, p2;
+  double fx, fy, cx, cy, xi, k1, k2, k3, k4, p1, p2;
   double marker_size, delta_width_qr_center, delta_height_qr_center;
   double delta_width_circles, delta_height_circles, circle_radius;
   int min_detected_markers;
+  string camera_model;
+  string distortion_model;
   string image_path;
   string bag_path;
   string lidar_topic;
@@ -90,12 +93,17 @@ struct Params {
 // 读取参数
 Params loadParameters(ros::NodeHandle &nh) {
   Params params;
+  nh.param("camera_model", params.camera_model, string("pinhole"));
+  nh.param("distortion_model", params.distortion_model, string("radtan"));
   nh.param("fx", params.fx, 1215.31801774424);
   nh.param("fy", params.fy, 1214.72961288138);
   nh.param("cx", params.cx, 1047.86571859677);
   nh.param("cy", params.cy, 745.068353101898);
+  nh.param("xi", params.xi, 0.0);
   nh.param("k1", params.k1, -0.33574781188503);
   nh.param("k2", params.k2, 0.10996870793601);
+  nh.param("k3", params.k3, 0.0);
+  nh.param("k4", params.k4, 0.0);
   nh.param("p1", params.p1, 0.000157303079833973);
   nh.param("p2", params.p2, 0.000544930726278493);
   nh.param("marker_size", params.marker_size, 0.2);
@@ -115,7 +123,27 @@ Params loadParameters(ros::NodeHandle &nh) {
   nh.param("y_max", params.y_max, 2.0);
   nh.param("z_min", params.z_min, -0.5);
   nh.param("z_max", params.z_max, 2.0);
+  params.camera_model = cameraModelName(params.camera_model);
+  params.distortion_model = cameraModelName(params.distortion_model);
   return params;
+}
+
+CameraConfig cameraConfigFromParams(const Params& params) {
+  CameraConfig config;
+  config.camera_model = params.camera_model;
+  config.distortion_model = params.distortion_model;
+  config.fx = params.fx;
+  config.fy = params.fy;
+  config.cx = params.cx;
+  config.cy = params.cy;
+  config.xi = params.xi;
+  config.k1 = params.k1;
+  config.k2 = params.k2;
+  config.k3 = params.k3;
+  config.k4 = params.k4;
+  config.p1 = params.p1;
+  config.p2 = params.p2;
+  return config;
 }
 
 double computeRMSE(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud1, 
@@ -156,26 +184,12 @@ void alignPointCloud(const pcl::PointCloud<pcl::PointXYZ>::Ptr &input_cloud,
 
 void projectPointCloudToImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
   const Eigen::Matrix4f& transformation,
-  const cv::Mat& cameraMatrix,
-  const cv::Mat& distCoeffs,
+  const Camera& camera,
   const cv::Mat& image,
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr& colored_cloud) 
 {
   colored_cloud->clear();
   colored_cloud->reserve(cloud->size());
-
-  // Undistort the entire image (preprocess outside if possible)
-  cv::Mat undistortedImage;
-  cv::undistort(image, undistortedImage, cameraMatrix, distCoeffs);
-
-  // Precompute rotation and translation vectors (zero for this case)
-  cv::Mat rvec = cv::Mat::zeros(3, 1, CV_32F);
-  cv::Mat tvec = cv::Mat::zeros(3, 1, CV_32F);
-  cv::Mat zeroDistCoeffs = cv::Mat::zeros(5, 1, CV_32F);
-
-  // Preallocate memory for projection
-  std::vector<cv::Point3f> objectPoints(1);
-  std::vector<cv::Point2f> imagePoints(1);
 
   for (const auto& point : *cloud) 
   {
@@ -183,21 +197,15 @@ void projectPointCloudToImage(const pcl::PointCloud<pcl::PointXYZ>::Ptr& cloud,
     Eigen::Vector4f homogeneous_point(point.x, point.y, point.z, 1.0f);
     Eigen::Vector4f transformed_point = transformation * homogeneous_point;
 
-    // Skip points behind the camera
-    if (transformed_point(2) < 0) continue;
-
-    // Project the point to the image plane
-    objectPoints[0] = cv::Point3f(transformed_point(0), transformed_point(1), transformed_point(2));
-    cv::projectPoints(objectPoints, rvec, tvec, cameraMatrix, zeroDistCoeffs, imagePoints);
-
-    int u = static_cast<int>(imagePoints[0].x);
-    int v = static_cast<int>(imagePoints[0].y);
+    cv::Point2d uv;
+    if (!camera.project(cv::Point3d(transformed_point(0), transformed_point(1), transformed_point(2)), uv)) continue;
 
     // Check if the point is within the image bounds
-    if (u >= 0 && u < undistortedImage.cols && v >= 0 && v < undistortedImage.rows) 
+    if (uv.x >= 0 && uv.x < image.cols && uv.y >= 0 && uv.y < image.rows)
     {
-      // Get the color from the undistorted image
-      cv::Vec3b color = undistortedImage.at<cv::Vec3b>(v, u);
+      int u = static_cast<int>(uv.x);
+      int v = static_cast<int>(uv.y);
+      cv::Vec3b color = image.at<cv::Vec3b>(v, u);
 
       // Create a colored point and add it to the cloud
       pcl::PointXYZRGB colored_point;
@@ -264,7 +272,9 @@ void saveCalibrationResults(const Params& params, const Eigen::Matrix4f& transfo
   if (outFile.is_open()) 
   {
     outFile << "# FAST-LIVO2 calibration format\n";
-    outFile << "cam_model: Pinhole\n";
+    outFile << "cam_model: " << (params.camera_model == "ucm" ? "UCM" : "Pinhole") << "\n";
+    outFile << "camera_model: " << params.camera_model << "\n";
+    outFile << "distortion_model: " << params.distortion_model << "\n";
     outFile << "cam_width: " << img_input.cols << "\n";
     outFile << "cam_height: " << img_input.rows << "\n";
     outFile << "scale: 1.0\n";
@@ -276,6 +286,13 @@ void saveCalibrationResults(const Params& params, const Eigen::Matrix4f& transfo
     outFile << "cam_d1: " << params.k2 << "\n";
     outFile << "cam_d2: " << params.p1 << "\n";
     outFile << "cam_d3: " << params.p2 << "\n";
+    outFile << "cam_k1: " << params.k1 << "\n";
+    outFile << "cam_k2: " << params.k2 << "\n";
+    outFile << "cam_k3: " << params.k3 << "\n";
+    outFile << "cam_k4: " << params.k4 << "\n";
+    outFile << "cam_p1: " << params.p1 << "\n";
+    outFile << "cam_p2: " << params.p2 << "\n";
+    outFile << "cam_xi: " << params.xi << "\n";
 
     outFile << "\nRcl: [" << std::fixed << std::setprecision(6);
     outFile << std::setw(10) << transformation(0, 0) << ", " << std::setw(10) << transformation(0, 1) << ", " << std::setw(10) << transformation(0, 2) << ",\n";
